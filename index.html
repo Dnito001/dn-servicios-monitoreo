@@ -30,7 +30,6 @@
   <!-- PANTALLA DE BLOQUEO EJECUTIVA (DERLIS NUÑEZ) -->
   <div id="pantalla-login" class="fixed inset-0 bg-zinc-950 z-50 flex items-center justify-center p-4">
     <div class="bg-zinc-900 border border-zinc-800 rounded-3xl max-w-sm w-full p-6 sm:p-8 shadow-2xl text-center space-y-6">
-      <!-- Contenedor del Logo Oficial DN -->
       <div class="w-28 h-28 rounded-2xl bg-white p-2 mx-auto shadow-xl border-2 border-zinc-700 flex items-center justify-center overflow-hidden">
         <img
           src="logo.png"
@@ -38,7 +37,6 @@
           class="w-full h-full object-contain"
           onerror="this.style.display='none'; document.getElementById('svg-fallback-login').classList.remove('hidden');"
         />
-        <!-- Réplica vectorial de respaldo si logo.png aún no está en la carpeta -->
         <svg id="svg-fallback-login" viewBox="0 0 200 200" class="w-full h-full hidden">
           <circle cx="100" cy="95" r="78" fill="#ffffff" />
           <path d="M 35 52 A 80 80 0 0 1 165 52" fill="none" stroke="#111111" stroke-width="10" stroke-linecap="round" />
@@ -96,7 +94,6 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3.5">
-            <!-- Logo de la empresa en el Header -->
             <div class="w-14 h-14 shrink-0 rounded-xl bg-white p-1 shadow-md border border-zinc-700 flex items-center justify-center overflow-hidden">
               <img
                 src="logo.png"
@@ -137,7 +134,6 @@
           </button>
         </div>
 
-        <!-- Controles Superiores de Sincronización y Exportación -->
         <div class="flex flex-wrap items-center gap-2">
           <button id="btn-sincronizar-ahora" class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2.5 rounded-lg shadow transition text-xs sm:text-sm">
             <i data-lucide="refresh-cw" class="w-4 h-4" id="icono-sync"></i>
@@ -183,7 +179,6 @@
           </div>
         </div>
 
-        <!-- Selector de Modo de Vista (Tabla Detallada vs. Resumen Diario por Fecha) -->
         <div class="space-y-1">
           <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">Modo de Consulta</span>
           <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
@@ -258,10 +253,10 @@
       <section class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <div class="flex items-center gap-2">
-            <i data-lucide="search-check" class="w-4 h-4 text-emerald-600"></i>
+            <i data-lucide="sliders-horizontal" class="w-4 h-4 text-emerald-600"></i>
             <h2 class="text-sm font-extrabold uppercase tracking-wide text-slate-800">Buscador Avanzado de Servicios, Fechas y Técnicos</h2>
           </div>
-          <button id="btn-limpiar" class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition self-start sm:self-auto">
+          <button id="btn-limpiar" type="button" class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition self-start sm:self-auto">
             <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
             Restablecer Filtros
           </button>
@@ -269,16 +264,24 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <div class="lg:col-span-2">
-            <label class="block text-xs font-bold text-slate-600 mb-1">Buscar (Equipo, Trabajo, Cliente, Día, ID)</label>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Buscar (Equipo, Marca, Trabajo, Cliente, Día, ID)</label>
             <div class="relative">
               <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
-              <input type="text" id="filtro-texto" placeholder="Ej. A13, Epson L3110, Pantalla, Adalberto, Lunes..." class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white" />
+              <input
+                type="search"
+                id="filtro-texto"
+                autocomplete="off"
+                oninput="window.aplicarFiltros && window.aplicarFiltros()"
+                onkeyup="window.aplicarFiltros && window.aplicarFiltros()"
+                placeholder="Ej. Epson, A13, L3110, Pantalla, Adalberto, Lunes..."
+                class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+              />
             </div>
           </div>
 
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">Técnico Responsable</label>
-            <select id="filtro-tecnico" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
+            <select id="filtro-tecnico" onchange="window.aplicarFiltros && window.aplicarFiltros()" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
               <option value="">Todos los técnicos</option>
               <option value="ANGEL VILLALBA">Ángel Villalba</option>
               <option value="JUNIOR ALMIRON">Junior Almirón</option>
@@ -287,32 +290,32 @@
 
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">Mes / Período</label>
-            <select id="filtro-mes" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
+            <select id="filtro-mes" onchange="window.aplicarFiltros && window.aplicarFiltros()" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
               <option value="">Todos los meses</option>
             </select>
           </div>
 
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">Fecha Exacta (Día)</label>
-            <select id="filtro-fecha" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
+            <select id="filtro-fecha" onchange="window.aplicarFiltros && window.aplicarFiltros()" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
               <option value="">Todas las fechas</option>
             </select>
           </div>
 
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">Categoría del Equipo</label>
-            <select id="filtro-categoria" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
+            <select id="filtro-categoria" onchange="window.aplicarFiltros && window.aplicarFiltros()" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
               <option value="">Todas las categorías</option>
             </select>
           </div>
         </div>
       </section>
 
-      <!-- SECCIÓN 1: VISTA DE RESUMEN DIARIO AGRUPADO POR FECHA (OCULTA POR DEFECTO) -->
+      <!-- SECCIÓN 1: VISTA DE RESUMEN DIARIO AGRUPADO POR FECHA -->
       <section id="seccion-vista-diaria" class="hidden space-y-4">
         <div class="bg-zinc-900 text-white px-5 py-4 rounded-2xl flex flex-wrap items-center justify-between gap-2 shadow">
           <div class="flex items-center gap-2">
-            <i data-lucide="calendar-check-2" class="w-5 h-5 text-emerald-400"></i>
+            <i data-lucide="calendar-check" class="w-5 h-5 text-emerald-400"></i>
             <h3 class="text-sm font-bold uppercase tracking-wider">Historial de Trabajos Agrupados por Fecha y Técnico</h3>
           </div>
           <span id="contador-dias" class="text-xs bg-zinc-800 text-emerald-300 px-3 py-1 rounded-lg font-semibold">0 fechas con actividad</span>
@@ -357,12 +360,12 @@
     </main>
   </div>
 
-  <!-- MODAL: FICHA DETALLADA DEL SERVICIO (PARA INSPECCIÓN DE DERLIS) -->
+  <!-- MODAL: FICHA DETALLADA DEL SERVICIO -->
   <div id="modal-detalle" class="fixed inset-0 bg-zinc-950/75 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden">
       <div class="bg-zinc-900 text-white px-6 py-4 flex items-center justify-between border-b border-emerald-500/40">
         <div class="flex items-center gap-2.5">
-          <i data-lucide="file-search" class="w-5 h-5 text-emerald-400"></i>
+          <i data-lucide="file-text" class="w-5 h-5 text-emerald-400"></i>
           <div>
             <h3 class="font-bold text-base" id="det-titulo-id">Orden de Servicio</h3>
             <p class="text-[11px] text-zinc-400">Ficha de auditoría técnica · DN Tecnologías y Servicios</p>
@@ -408,6 +411,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=1"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>

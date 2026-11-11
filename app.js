@@ -1,11 +1,11 @@
 // ============================================================================
 // DN TECNOLOGÍAS Y SERVICIOS - PANEL GERENCIAL DE MONITOREO (DERLIS NUÑEZ)
-// CONECTADO EN TIEMPO REAL A LA BASE DE DATOS DE ÁNGEL VILLALBA Y JUNIOR ALMIRÓN
+// CON BUSCADOR INTELIGENTE MULTICAMPO CORREGIDO Y CONEXIÓN EN TIEMPO REAL
 // ============================================================================
 
-const PIN_ACCESO = "111"; // PIN de acceso para Derlis Nuñez
+const PIN_ACCESO = "777"; // PIN de acceso para Derlis Nuñez
 const AUTH_SESSION_KEY = "dn_monitoreo_derlis_auth_v1";
-const STORAGE_KEY = "dn_monitoreo_derlis_db_v1";
+const STORAGE_KEY = "dn_monitoreo_derlis_db_v2";
 const DRIVE_URL_KEY = "dn_servicios_drive_url";
 
 const DEFAULT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbxezjx2ilDKOrdGQXrE3bHUO3cnMnMFDoDl3FJ7SX1xGTU-HmLXqWHrNB3h2IzcIrPF-g/exec";
@@ -366,8 +366,17 @@ const RAW_DATOS_JUNIOR = [
   ["REP-287", "07/11/2026", "Smartphone", "Samsung", "Galaxy A52", "Ajuste de conector FPC", ""]
 ];
 
+// Función segura para normalizar cualquier texto o número para búsquedas sin tildes
+function limpiarParaBusqueda(valor) {
+  return String(valor ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
 function deducirIntervencionJunior(trabajo) {
-  const t = (trabajo || "").toLowerCase();
+  const t = String(trabajo ?? "").toLowerCase();
   const lista = [];
   if (t.includes("pantalla") || t.includes("táctil") || t.includes("display") || t.includes("módulo")) lista.push("Cambio de Pantalla / Módulo");
   if (t.includes("pin") || t.includes("puerto de carga") || t.includes("placa de carga") || t.includes("línea de carga") || t.includes("flex de carga") || t.includes("flex carga")) lista.push("Pin de Carga / Placa de Carga");
@@ -381,7 +390,7 @@ function deducirIntervencionJunior(trabajo) {
 }
 
 function deducirRepuestosJunior(trabajo) {
-  const t = (trabajo || "").toLowerCase();
+  const t = String(trabajo ?? "").toLowerCase();
   const rep = [];
   if (t.includes("cambio de pantalla") || t.includes("y pantalla")) rep.push("Módulo de Pantalla");
   if (t.includes("cambio de pin") || t.includes("pin de carga")) rep.push("Pin de Carga");
@@ -410,7 +419,7 @@ function obtenerMontoNumerico(precioStr) {
 }
 
 function extraerPrecioDeTexto(linea) {
-  let texto = String(linea || "").trim();
+  let texto = String(linea ?? "").trim();
   let precioFormateado = "";
   const regexParentesisGs = /\(\s*(\d{1,3}(?:[.,]\d{3})+|\d{4,9})\s*(?:gs\.?|guaran[ií]es)\s*\)/i;
   const regexExplicito = /(?:\s+[-–:]?\s*|\b)(\d{1,3}(?:[.,]\d{3})+|\d{4,9})\s*(?:gs\.?|guaran[ií]es)\b\.?/i;
@@ -451,7 +460,7 @@ const DATOS_JUNIOR = RAW_DATOS_JUNIOR.map(([id, fecha, categoria, marca, modelo,
 const DATOS_MAESTROS_UNIFICADOS = [...DATOS_ANGEL, ...DATOS_JUNIOR];
 
 let servicios = [];
-let modoVistaActual = "tabla"; // "tabla" o "diaria"
+let modoVistaActual = "tabla";
 let driveUrl = localStorage.getItem(DRIVE_URL_KEY) || DEFAULT_DRIVE_URL;
 
 function normalizarFecha(f) {
@@ -480,7 +489,7 @@ function obtenerDiaSemana(fechaDDMMYYYY) {
 }
 
 function obtenerNombreMesAnio(fechaDDMMYYYY) {
-  const partes = String(fechaDDMMYYYY || "").split("/");
+  const partes = String(fechaDDMMYYYY ?? "").split("/");
   if (partes.length !== 3) return "";
   const mm = parseInt(partes[1], 10);
   const yyyy = partes[2];
@@ -490,15 +499,15 @@ function obtenerNombreMesAnio(fechaDDMMYYYY) {
 }
 
 function convertirFechaATimestamp(fechaDDMMYYYY) {
-  const partes = String(fechaDDMMYYYY || "").split("/");
+  const partes = String(fechaDDMMYYYY ?? "").split("/");
   if (partes.length !== 3) return 0;
   const [dd, mm, yyyy] = partes.map(Number);
   return new Date(yyyy, mm - 1, dd).getTime() || 0;
 }
 
 function identificarTecnico(item) {
-  const t = String(item.tecnico || "").toUpperCase();
-  const id = String(item.id || "").toUpperCase();
+  const t = String(item.tecnico ?? "").toUpperCase();
+  const id = String(item.id ?? "").toUpperCase();
   if (t.includes("ANGEL") || t.includes("ÁNGEL") || id.startsWith("SER-")) return "ANGEL VILLALBA";
   if (t.includes("JUNIOR") || id.startsWith("REP-")) return "JUNIOR ALMIRON";
   return "ANGEL VILLALBA";
@@ -507,8 +516,8 @@ function identificarTecnico(item) {
 function normalizarRegistros(lista) {
   return lista.map((item) => {
     const tecnico = identificarTecnico(item);
-    const trabajoRaw = String(item.trabajo || "").replace(/Ajuste reflux de conector FPC/gi, "Ajuste y resoldado de conector FPC");
-    const notasRaw = String(item.notas || "")
+    const trabajoRaw = String(item.trabajo ?? "").replace(/Ajuste reflux de conector FPC/gi, "Ajuste y resoldado de conector FPC");
+    const notasRaw = String(item.notas ?? "")
       .replace(/\(Téc:\s*ANGEL VILLALBA\)/gi, "")
       .replace(/Téc:\s*ANGEL VILLALBA/gi, "")
       .trim();
@@ -519,29 +528,29 @@ function normalizarRegistros(lista) {
     const trabajoLimpio = extTrabajo.precio ? extTrabajo.textoSinPrecio : trabajoRaw;
     const notasLimpias = (extNotas.precio && !item.precio) ? extNotas.textoSinPrecio : notasRaw;
 
-    let inter = item.intervencion || deducirIntervencionJunior(trabajoLimpio);
+    let inter = String(item.intervencion ?? deducirIntervencionJunior(trabajoLimpio));
     inter = inter.replace(/\/ Reflux/gi, "").trim();
 
     return {
-      id: String(item.id || "").trim(),
-      fecha: normalizarFecha(item.fecha),
-      categoria: item.categoria || "Smartphone",
-      marca: item.marca || "Genérico",
-      modelo: item.modelo || "-",
+      id: String(item.id ?? "").trim(),
+      fecha: String(normalizarFecha(item.fecha) ?? "").trim(),
+      categoria: String(item.categoria ?? "Smartphone").trim(),
+      marca: String(item.marca ?? "Genérico").trim(),
+      modelo: String(item.modelo ?? "-").trim(),
       intervencion: inter,
-      trabajo: trabajoLimpio,
-      repuestos: item.repuestos || "Ninguno",
-      precio: precioFinal,
-      estado: item.estado || "Entregado",
-      notas: notasLimpias,
-      tecnico
+      trabajo: String(trabajoLimpio ?? "").trim(),
+      repuestos: String(item.repuestos ?? "Ninguno").trim(),
+      precio: String(precioFinal ?? "").trim(),
+      estado: String(item.estado ?? "Entregado").trim(),
+      notas: String(notasLimpias ?? "").trim(),
+      tecnico: String(tecnico).trim()
     };
   });
 }
 
 function fusionarBaseCompleta(listaEntrante) {
   const mapa = new Map();
-  DATOS_MAESTROS_UNIFICADOS.forEach((m) => mapa.set(m.id, m));
+  DATOS_MAESTROS_UNIFICADOS.forEach((m) => mapa.set(String(m.id).trim().toUpperCase(), m));
   if (Array.isArray(listaEntrante)) {
     listaEntrante.forEach((item) => {
       if (item && item.id) {
@@ -671,7 +680,7 @@ function poblarSelectores() {
   const valMes = selMes.value;
   const valFecha = selFecha.value;
 
-  const categorias = [...new Set(servicios.map((s) => s.categoria))].sort();
+  const categorias = [...new Set(servicios.map((s) => String(s.categoria ?? "")))].filter(Boolean).sort();
   const mesesSet = new Set();
   servicios.forEach((s) => {
     const m = obtenerNombreMesAnio(s.fecha);
@@ -679,10 +688,9 @@ function poblarSelectores() {
   });
   const meses = [...mesesSet];
 
-  // Ordenar fechas de más reciente a más antigua en el selector
-  const fechasUnicas = [...new Set(servicios.map((s) => s.fecha))].sort(
-    (a, b) => convertirFechaATimestamp(b) - convertirFechaATimestamp(a)
-  );
+  const fechasUnicas = [...new Set(servicios.map((s) => String(s.fecha ?? "")))]
+    .filter(Boolean)
+    .sort((a, b) => convertirFechaATimestamp(b) - convertirFechaATimestamp(a));
 
   selCat.innerHTML = '<option value="">Todas las categorías</option>' + categorias.map((c) => `<option value="${c}">${c}</option>`).join("");
   selMes.innerHTML = '<option value="">Todos los meses</option>' + meses.map((m) => `<option value="${m}">${m}</option>`).join("");
@@ -708,13 +716,13 @@ function aplicarFiltros() {
   const selFecha = document.getElementById("filtro-fecha");
   const selCat = document.getElementById("filtro-categoria");
 
-  const texto = (inpTexto ? inpTexto.value : "").toLowerCase().trim();
+  const textoQuery = limpiarParaBusqueda(inpTexto ? inpTexto.value : "");
+  const palabrasBusqueda = textoQuery ? textoQuery.split(/\s+/).filter(Boolean) : [];
   const tecnico = selTecnico ? selTecnico.value : "";
   const mes = selMes ? selMes.value : "";
   const fecha = selFecha ? selFecha.value : "";
   const cat = selCat ? selCat.value : "";
 
-  // Actualizar estado activo de los botones superiores de técnico
   document.querySelectorAll(".btn-tab-tecnico").forEach((btn) => {
     const tBtn = btn.getAttribute("data-tecnico") || "";
     if (tBtn === tecnico) {
@@ -725,21 +733,17 @@ function aplicarFiltros() {
   });
 
   const filtrados = servicios.filter((item) => {
-    const diaNombre = obtenerDiaSemana(item.fecha).toLowerCase();
+    const diaNombre = obtenerDiaSemana(item.fecha);
     const mesNombre = obtenerNombreMesAnio(item.fecha);
 
-    const coincideTexto =
-      !texto ||
-      item.id.toLowerCase().includes(texto) ||
-      item.modelo.toLowerCase().includes(texto) ||
-      item.marca.toLowerCase().includes(texto) ||
-      item.trabajo.toLowerCase().includes(texto) ||
-      item.intervencion.toLowerCase().includes(texto) ||
-      (item.notas || "").toLowerCase().includes(texto) ||
-      (item.precio || "").toLowerCase().includes(texto) ||
-      item.tecnico.toLowerCase().includes(texto) ||
-      item.fecha.toLowerCase().includes(texto) ||
-      diaNombre.includes(texto);
+    // Bloque unificado seguro (convierte todo a String sin tildes y soporta búsqueda por varias palabras)
+    let coincideTexto = true;
+    if (palabrasBusqueda.length > 0) {
+      const bloqueFila = limpiarParaBusqueda(
+        `${item.id} ${item.fecha} ${diaNombre} ${mesNombre} ${item.tecnico} ${item.categoria} ${item.marca} ${item.modelo} ${item.intervencion} ${item.trabajo} ${item.repuestos} ${item.precio} ${item.notas}`
+      );
+      coincideTexto = palabrasBusqueda.every((palabra) => bloqueFila.includes(palabra));
+    }
 
     const coincideTecnico = !tecnico || item.tecnico === tecnico;
     const coincideMes = !mes || mesNombre === mes;
@@ -766,10 +770,11 @@ function obtenerBadgeTecnico(tecnico) {
 }
 
 function obtenerColorBadgeCategoria(categoria) {
-  if (categoria.includes("Smartphone") || categoria.includes("Celular")) return "bg-teal-50 text-teal-800 border-teal-200";
-  if (categoria.includes("Impresora")) return "bg-emerald-50 text-emerald-800 border-emerald-200";
-  if (categoria.includes("Notebook") || categoria.includes("Laptop") || categoria.includes("PC")) return "bg-amber-50 text-amber-800 border-amber-200";
-  if (categoria.includes("Tablet")) return "bg-sky-50 text-sky-800 border-sky-200";
+  const cat = String(categoria ?? "");
+  if (cat.includes("Smartphone") || cat.includes("Celular")) return "bg-teal-50 text-teal-800 border-teal-200";
+  if (cat.includes("Impresora")) return "bg-emerald-50 text-emerald-800 border-emerald-200";
+  if (cat.includes("Notebook") || cat.includes("Laptop") || cat.includes("PC")) return "bg-amber-50 text-amber-800 border-amber-200";
+  if (cat.includes("Tablet")) return "bg-sky-50 text-sky-800 border-sky-200";
   return "bg-slate-100 text-slate-700 border-slate-200";
 }
 
@@ -1064,12 +1069,21 @@ function actualizarKPIs(filtrados) {
 }
 
 function configurarEventos() {
-  ["filtro-texto", "filtro-tecnico", "filtro-mes", "filtro-fecha", "filtro-categoria"].forEach((id) => {
+  const inpTexto = document.getElementById("filtro-texto");
+  if (inpTexto) {
+    inpTexto.addEventListener("input", aplicarFiltros);
+    inpTexto.addEventListener("keyup", aplicarFiltros);
+    inpTexto.addEventListener("search", aplicarFiltros);
+  }
+
+  ["filtro-tecnico", "filtro-mes", "filtro-fecha", "filtro-categoria"].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) el.addEventListener("input", aplicarFiltros);
+    if (el) {
+      el.addEventListener("change", aplicarFiltros);
+      el.addEventListener("input", aplicarFiltros);
+    }
   });
 
-  // Botones superiores de selección rápida por técnico
   document.querySelectorAll(".btn-tab-tecnico").forEach((btn) => {
     btn.addEventListener("click", () => {
       const tec = btn.getAttribute("data-tecnico") || "";
@@ -1081,7 +1095,6 @@ function configurarEventos() {
     });
   });
 
-  // Cambio entre vista de Tabla y vista de Resumen por Fecha
   const btnVistaTabla = document.getElementById("btn-vista-tabla");
   const btnVistaDiaria = document.getElementById("btn-vista-diaria");
   const secTabla = document.getElementById("seccion-vista-tabla");
@@ -1146,11 +1159,11 @@ function configurarEventos() {
         s.categoria,
         s.marca,
         s.modelo,
-        `"${s.intervencion}"`,
-        `"${s.trabajo.replace(/"/g, '""')}"`,
+        `"${String(s.intervencion).replace(/"/g, '""')}"`,
+        `"${String(s.trabajo).replace(/"/g, '""')}"`,
         s.repuestos,
         s.precio || "",
-        `"${(s.notas || "").replace(/"/g, '""')}"`
+        `"${String(s.notas || "").replace(/"/g, '""')}"`
       ]);
       const csvContent = "\uFEFF" + [encabezados.join(";"), ...filas.map((f) => f.join(";"))].join("\n");
 
