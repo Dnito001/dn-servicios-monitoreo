@@ -3,7 +3,7 @@
 // CON BUSCADOR INTELIGENTE MULTICAMPO CORREGIDO Y CONEXIÓN EN TIEMPO REAL
 // ============================================================================
 
-const PIN_ACCESO = "777"; // PIN de acceso para Derlis Nuñez
+const PIN_ACCESO = "111"; // PIN de acceso para Derlis Nuñez
 const AUTH_SESSION_KEY = "dn_monitoreo_derlis_auth_v1";
 const STORAGE_KEY = "dn_monitoreo_derlis_db_v2";
 const DRIVE_URL_KEY = "dn_servicios_drive_url";
