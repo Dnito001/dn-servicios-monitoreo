@@ -5,7 +5,7 @@
 
 const PIN_ACCESO = "111"; // PIN de acceso para Derlis Nuñez
 const AUTH_SESSION_KEY = "dn_monitoreo_derlis_auth_v1";
-const STORAGE_KEY = "dn_monitoreo_derlis_db_v2";
+const STORAGE_KEY = "dn_monitoreo_derlis_db_v3";
 const DRIVE_URL_KEY = "dn_servicios_drive_url";
 
 const DEFAULT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbxezjx2ilDKOrdGQXrE3bHUO3cnMnMFDoDl3FJ7SX1xGTU-HmLXqWHrNB3h2IzcIrPF-g/exec";
@@ -633,6 +633,10 @@ function configurarSeguridad() {
 }
 
 function cargarBaseDeDatos() {
+  // Limpiar versiones viejas de caché local
+  localStorage.removeItem("dn_monitoreo_derlis_db_v1");
+  localStorage.removeItem("dn_monitoreo_derlis_db_v2");
+
   const guardados = localStorage.getItem(STORAGE_KEY);
   if (guardados) {
     try {
@@ -736,7 +740,6 @@ function aplicarFiltros() {
     const diaNombre = obtenerDiaSemana(item.fecha);
     const mesNombre = obtenerNombreMesAnio(item.fecha);
 
-    // Bloque unificado seguro (convierte todo a String sin tildes y soporta búsqueda por varias palabras)
     let coincideTexto = true;
     if (palabrasBusqueda.length > 0) {
       const bloqueFila = limpiarParaBusqueda(
@@ -757,6 +760,8 @@ function aplicarFiltros() {
   renderizarVistaDiaria(filtrados);
   actualizarKPIs(filtrados);
 }
+
+window.aplicarFiltros = aplicarFiltros;
 
 function obtenerBadgeTecnico(tecnico) {
   if (tecnico === "ANGEL VILLALBA") {
@@ -1211,7 +1216,8 @@ async function sincronizarDesdeDrive(mostrarAlerta = false) {
   if (icono) icono.classList.add("animate-spin");
 
   try {
-    const res = await fetch(driveUrl);
+    const separador = driveUrl.includes("?") ? "&" : "?";
+    const res = await fetch(`${driveUrl}${separador}t=${Date.now()}`, { cache: "no-store" });
     const data = await res.json();
     if (Array.isArray(data) && data.length > 0) {
       servicios = normalizarRegistros(fusionarBaseCompleta(data));
