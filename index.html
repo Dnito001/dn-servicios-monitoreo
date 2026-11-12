@@ -254,59 +254,91 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <div class="flex items-center gap-2">
             <i data-lucide="sliders-horizontal" class="w-4 h-4 text-emerald-600"></i>
-            <h2 class="text-sm font-extrabold uppercase tracking-wide text-slate-800">Buscador Avanzado de Servicios, Fechas y Técnicos</h2>
+            <h2 class="text-sm font-extrabold uppercase tracking-wide text-slate-800">Buscador Inteligente por Equipos, Marcas, Fechas y Técnicos</h2>
           </div>
           <button id="btn-limpiar" type="button" class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition self-start sm:self-auto">
             <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
-            Restablecer Filtros
+            Restablecer Todo
           </button>
         </div>
 
+        <!-- BUSCADOR Y SELECTORES PRINCIPALES -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-          <div class="lg:col-span-2">
-            <label class="block text-xs font-bold text-slate-600 mb-1">Buscar (Equipo, Marca, Trabajo, Cliente, Día, ID)</label>
+          <div class="sm:col-span-2 lg:col-span-2">
+            <label class="block text-xs font-bold text-slate-600 mb-1">Buscar (Modelo, Marca, Trabajo, Cliente, Día, ID)</label>
             <div class="relative">
               <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
               <input
                 type="search"
                 id="filtro-texto"
                 autocomplete="off"
-                oninput="window.aplicarFiltros && window.aplicarFiltros()"
-                onkeyup="window.aplicarFiltros && window.aplicarFiltros()"
-                placeholder="Ej. Epson, A13, L3110, Pantalla, Adalberto, Lunes..."
+                placeholder="Ej. A13, Redmi 12, L3110, Pantalla, Adalberto..."
                 class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
               />
             </div>
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-600 mb-1">Técnico Responsable</label>
-            <select id="filtro-tecnico" onchange="window.aplicarFiltros && window.aplicarFiltros()" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
-              <option value="">Todos los técnicos</option>
-              <option value="ANGEL VILLALBA">Ángel Villalba</option>
-              <option value="JUNIOR ALMIRON">Junior Almirón</option>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Categoría (Equipo)</label>
+            <select id="filtro-categoria" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
+              <option value="">Todas las categorías</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Marca</label>
+            <select id="filtro-marca" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
+              <option value="">Todas las marcas</option>
             </select>
           </div>
 
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">Mes / Período</label>
-            <select id="filtro-mes" onchange="window.aplicarFiltros && window.aplicarFiltros()" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
+            <select id="filtro-mes" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
               <option value="">Todos los meses</option>
             </select>
           </div>
 
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">Fecha Exacta (Día)</label>
-            <select id="filtro-fecha" onchange="window.aplicarFiltros && window.aplicarFiltros()" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
+            <select id="filtro-fecha" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
               <option value="">Todas las fechas</option>
             </select>
           </div>
+        </div>
 
-          <div>
-            <label class="block text-xs font-bold text-slate-600 mb-1">Categoría del Equipo</label>
-            <select id="filtro-categoria" onchange="window.aplicarFiltros && window.aplicarFiltros()" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white">
-              <option value="">Todas las categorías</option>
-            </select>
+        <!-- SELECTOR OCULTO SINCRONIZADO CON LOS TABS DE TÉCNICOS -->
+        <select id="filtro-tecnico" class="hidden">
+          <option value="">Todos los técnicos</option>
+          <option value="ANGEL VILLALBA">Ángel Villalba</option>
+          <option value="JUNIOR ALMIRON">Junior Almirón</option>
+        </select>
+
+        <!-- BOTONES DE FILTRO RÁPIDO (1 CLIC) PARA EQUIPOS Y MARCAS -->
+        <div class="pt-2 border-t border-slate-100 space-y-2.5">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 mr-1">Equipos:</span>
+            <button type="button" data-cat="" class="chip-filtro-cat px-3 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-600 text-white shadow-xs transition cursor-pointer">Todos</button>
+            <button type="button" data-cat="Smartphone" class="chip-filtro-cat px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">📱 Smartphones</button>
+            <button type="button" data-cat="Notebook / Laptop" class="chip-filtro-cat px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">💻 Laptops / Notebooks</button>
+            <button type="button" data-cat="Impresora" class="chip-filtro-cat px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">🖨️ Impresoras</button>
+            <button type="button" data-cat="PC Escritorio / Software" class="chip-filtro-cat px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">🖥️ PC / Software</button>
+            <button type="button" data-cat="Tablet" class="chip-filtro-cat px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">📟 Tablets</button>
+            <button type="button" data-cat="Audio / Parlante / Portátil" class="chip-filtro-cat px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">🔊 Audio / JBL</button>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 mr-1">Marcas:</span>
+            <button type="button" data-marca="" class="chip-filtro-marca px-3 py-1.5 rounded-xl text-xs font-extrabold bg-indigo-600 text-white shadow-xs transition cursor-pointer">Todas</button>
+            <button type="button" data-marca="Samsung" class="chip-filtro-marca px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">Samsung</button>
+            <button type="button" data-marca="Xiaomi" class="chip-filtro-marca px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">Xiaomi / Redmi</button>
+            <button type="button" data-marca="Apple" class="chip-filtro-marca px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">Apple / iPhone</button>
+            <button type="button" data-marca="HP" class="chip-filtro-marca px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">HP</button>
+            <button type="button" data-marca="Epson" class="chip-filtro-marca px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">Epson</button>
+            <button type="button" data-marca="Motorola" class="chip-filtro-marca px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">Motorola</button>
+            <button type="button" data-marca="JBL" class="chip-filtro-marca px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">JBL</button>
+            <button type="button" data-marca="Honor" class="chip-filtro-marca px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">Honor</button>
+            <button type="button" data-marca="Brother" class="chip-filtro-marca px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer">Brother</button>
           </div>
         </div>
       </section>
@@ -411,6 +443,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20261111170745"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

@@ -1,14 +1,19 @@
 // ============================================================================
 // DN TECNOLOGÍAS Y SERVICIOS - PANEL GERENCIAL DE MONITOREO (DERLIS NUÑEZ)
-// CON BUSCADOR INTELIGENTE MULTICAMPO CORREGIDO Y CONEXIÓN EN TIEMPO REAL
+// VERSIÓN 4: MOTOR DE BÚSQUEDA ULTRARRÁPIDO SIN LAG + FILTROS DE MARCA Y EQUIPO
 // ============================================================================
 
 const PIN_ACCESO = "111"; // PIN de acceso para Derlis Nuñez
 const AUTH_SESSION_KEY = "dn_monitoreo_derlis_auth_v1";
-const STORAGE_KEY = "dn_monitoreo_derlis_db_v3";
+const STORAGE_KEY = "dn_monitoreo_derlis_db_v4";
 const DRIVE_URL_KEY = "dn_servicios_drive_url";
 
 const DEFAULT_DRIVE_URL = "https://script.google.com/macros/s/AKfycbxezjx2ilDKOrdGQXrE3bHUO3cnMnMFDoDl3FJ7SX1xGTU-HmLXqWHrNB3h2IzcIrPF-g/exec";
+
+// SVGs nativos en línea para evitar que lucide.createIcons() congele el navegador al filtrar 350+ filas
+const SVG_CPU = `<svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-teal-700 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>`;
+const SVG_SMARTPHONE = `<svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-indigo-700 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>`;
+const SVG_EYE = `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>`;
 
 // 1. BASE HISTÓRICA DE ÁNGEL VILLALBA (61 REGISTROS: SER-001 AL SER-061)
 const DATOS_ANGEL = [
@@ -366,13 +371,34 @@ const RAW_DATOS_JUNIOR = [
   ["REP-287", "07/11/2026", "Smartphone", "Samsung", "Galaxy A52", "Ajuste de conector FPC", ""]
 ];
 
-// Función segura para normalizar cualquier texto o número para búsquedas sin tildes
 function limpiarParaBusqueda(valor) {
   return String(valor ?? "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim();
+}
+
+function unificarCategoria(catRaw) {
+  const c = String(catRaw ?? "Smartphone").trim();
+  const cl = c.toLowerCase();
+  if (cl === "laptop" || cl === "notebook / laptop" || cl === "pc / laptop") return "Notebook / Laptop";
+  if (cl === "pc / software" || cl === "pc / redes" || cl === "pc escritorio / servidor") return "PC Escritorio / Software";
+  if (cl.includes("audio") || cl.includes("parlante") || cl.includes("auricular") || cl.includes("radio")) return "Audio / Parlante / Portátil";
+  if (cl.includes("smart tv") || cl.includes("multimedia")) return "Smart TV / Multimedia";
+  return c;
+}
+
+function obtenerSinonimosCategoria(catUnificada, marca, modelo) {
+  const cl = String(catUnificada).toLowerCase();
+  const extra = [];
+  if (cl.includes("smartphone") || cl.includes("celular")) extra.push("telefono celular movil smartphone android iphone");
+  if (cl.includes("notebook") || cl.includes("laptop")) extra.push("laptop notebook portatil computadora");
+  if (cl.includes("pc")) extra.push("pc computadora escritorio gabinete cpu");
+  if (cl.includes("impresora")) extra.push("impresora ecotank tinta cartucho toner");
+  if (cl.includes("tablet")) extra.push("tablet ipad pad");
+  if (String(marca).toLowerCase() === "apple" || String(modelo).toLowerCase().includes("iphone")) extra.push("apple iphone ios");
+  return extra.join(" ");
 }
 
 function deducirIntervencionJunior(trabajo) {
@@ -460,7 +486,10 @@ const DATOS_JUNIOR = RAW_DATOS_JUNIOR.map(([id, fecha, categoria, marca, modelo,
 const DATOS_MAESTROS_UNIFICADOS = [...DATOS_ANGEL, ...DATOS_JUNIOR];
 
 let servicios = [];
+let ultimosFiltrados = [];
 let modoVistaActual = "tabla";
+let timerBusqueda = null;
+let ultimoAnchoMovil = window.innerWidth < 768;
 let driveUrl = localStorage.getItem(DRIVE_URL_KEY) || DEFAULT_DRIVE_URL;
 
 function normalizarFecha(f) {
@@ -513,9 +542,15 @@ function identificarTecnico(item) {
   return "ANGEL VILLALBA";
 }
 
+// Precalcula todos los campos pesados (_busqueda, _dia, _mes, _timestamp, _monto) una sola vez
 function normalizarRegistros(lista) {
   return lista.map((item) => {
     const tecnico = identificarTecnico(item);
+    const fechaNorm = String(normalizarFecha(item.fecha) ?? "").trim();
+    const categoriaUnificada = unificarCategoria(item.categoria);
+    const marcaLimpia = String(item.marca ?? "Genérico").trim();
+    const modeloLimpio = String(item.modelo ?? "-").trim();
+
     const trabajoRaw = String(item.trabajo ?? "").replace(/Ajuste reflux de conector FPC/gi, "Ajuste y resoldado de conector FPC");
     const notasRaw = String(item.notas ?? "")
       .replace(/\(Téc:\s*ANGEL VILLALBA\)/gi, "")
@@ -525,25 +560,42 @@ function normalizarRegistros(lista) {
     const extTrabajo = extraerPrecioDeTexto(trabajoRaw);
     const extNotas = extraerPrecioDeTexto(notasRaw);
     const precioFinal = item.precio ? formatearGuaranies(item.precio) : (extTrabajo.precio || extNotas.precio || "");
-    const trabajoLimpio = extTrabajo.precio ? extTrabajo.textoSinPrecio : trabajoRaw;
-    const notasLimpias = (extNotas.precio && !item.precio) ? extNotas.textoSinPrecio : notasRaw;
+    const trabajoLimpio = (extTrabajo.precio ? extTrabajo.textoSinPrecio : trabajoRaw).trim();
+    const notasLimpias = ((extNotas.precio && !item.precio) ? extNotas.textoSinPrecio : notasRaw).trim();
 
     let inter = String(item.intervencion ?? deducirIntervencionJunior(trabajoLimpio));
     inter = inter.replace(/\/ Reflux/gi, "").trim();
 
+    const repuestosLimpio = String(item.repuestos ?? "Ninguno").trim();
+    const idLimpio = String(item.id ?? "").trim();
+    const diaSemana = obtenerDiaSemana(fechaNorm);
+    const mesAnio = obtenerNombreMesAnio(fechaNorm);
+    const timestamp = convertirFechaATimestamp(fechaNorm);
+    const montoNum = obtenerMontoNumerico(precioFinal);
+    const sinonimos = obtenerSinonimosCategoria(categoriaUnificada, marcaLimpia, modeloLimpio);
+
+    const indiceBusqueda = limpiarParaBusqueda(
+      `${idLimpio} ${fechaNorm} ${diaSemana} ${mesAnio} ${tecnico} ${categoriaUnificada} ${item.categoria || ""} ${marcaLimpia} ${modeloLimpio} ${inter} ${trabajoLimpio} ${repuestosLimpio} ${precioFinal} ${notasLimpias} ${sinonimos}`
+    );
+
     return {
-      id: String(item.id ?? "").trim(),
-      fecha: String(normalizarFecha(item.fecha) ?? "").trim(),
-      categoria: String(item.categoria ?? "Smartphone").trim(),
-      marca: String(item.marca ?? "Genérico").trim(),
-      modelo: String(item.modelo ?? "-").trim(),
+      id: idLimpio,
+      fecha: fechaNorm,
+      categoria: categoriaUnificada,
+      marca: marcaLimpia,
+      modelo: modeloLimpio,
       intervencion: inter,
-      trabajo: String(trabajoLimpio ?? "").trim(),
-      repuestos: String(item.repuestos ?? "Ninguno").trim(),
+      trabajo: trabajoLimpio,
+      repuestos: repuestosLimpio,
       precio: String(precioFinal ?? "").trim(),
       estado: String(item.estado ?? "Entregado").trim(),
-      notas: String(notasLimpias ?? "").trim(),
-      tecnico: String(tecnico).trim()
+      notas: notasLimpias,
+      tecnico: String(tecnico).trim(),
+      _dia: diaSemana,
+      _mes: mesAnio,
+      _timestamp: timestamp,
+      _monto: montoNum,
+      _busqueda: indiceBusqueda
     };
   });
 }
@@ -632,10 +684,19 @@ function configurarSeguridad() {
   if (btnBloquearMovil) btnBloquearMovil.addEventListener("click", bloquearSistema);
 }
 
+function guardarCacheLocal() {
+  const copiaLimpia = servicios.map(({ _dia, _mes, _timestamp, _monto, _busqueda, ...resto }) => resto);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(copiaLimpia));
+  } catch (e) {
+    console.warn("Storage:", e);
+  }
+}
+
 function cargarBaseDeDatos() {
-  // Limpiar versiones viejas de caché local
   localStorage.removeItem("dn_monitoreo_derlis_db_v1");
   localStorage.removeItem("dn_monitoreo_derlis_db_v2");
+  localStorage.removeItem("dn_monitoreo_derlis_db_v3");
 
   const guardados = localStorage.getItem(STORAGE_KEY);
   if (guardados) {
@@ -648,7 +709,7 @@ function cargarBaseDeDatos() {
   } else {
     servicios = normalizarRegistros(fusionarBaseCompleta([]));
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(servicios));
+  guardarCacheLocal();
 
   actualizarContadoresTabsTecnicos();
   poblarSelectores();
@@ -661,8 +722,12 @@ function cargarBaseDeDatos() {
 
 function actualizarContadoresTabsTecnicos() {
   const total = servicios.length;
-  const cantAngel = servicios.filter((s) => s.tecnico === "ANGEL VILLALBA").length;
-  const cantJunior = servicios.filter((s) => s.tecnico === "JUNIOR ALMIRON").length;
+  let cantAngel = 0;
+  let cantJunior = 0;
+  for (let i = 0; i < total; i++) {
+    if (servicios[i].tecnico === "ANGEL VILLALBA") cantAngel++;
+    else cantJunior++;
+  }
 
   const bTodos = document.getElementById("badge-count-todos");
   const bAngel = document.getElementById("badge-count-angel");
@@ -675,42 +740,86 @@ function actualizarContadoresTabsTecnicos() {
 
 function poblarSelectores() {
   const selCat = document.getElementById("filtro-categoria");
+  const selMarca = document.getElementById("filtro-marca");
   const selMes = document.getElementById("filtro-mes");
   const selFecha = document.getElementById("filtro-fecha");
 
   if (!selCat || !selMes || !selFecha) return;
 
   const valCat = selCat.value;
+  const valMarca = selMarca ? selMarca.value : "";
   const valMes = selMes.value;
   const valFecha = selFecha.value;
 
-  const categorias = [...new Set(servicios.map((s) => String(s.categoria ?? "")))].filter(Boolean).sort();
-  const mesesSet = new Set();
+  const conteoCat = {};
+  const conteoMarca = {};
+  const conteoFecha = {};
+  const mesesMap = new Map();
+
   servicios.forEach((s) => {
-    const m = obtenerNombreMesAnio(s.fecha);
-    if (m) mesesSet.add(m);
+    if (s.categoria) conteoCat[s.categoria] = (conteoCat[s.categoria] || 0) + 1;
+    if (s.marca) conteoMarca[s.marca] = (conteoMarca[s.marca] || 0) + 1;
+    if (s.fecha) conteoFecha[s.fecha] = (conteoFecha[s.fecha] || 0) + 1;
+    if (s._mes && !mesesMap.has(s._mes)) {
+      mesesMap.set(s._mes, s._timestamp);
+    }
   });
-  const meses = [...mesesSet];
 
-  const fechasUnicas = [...new Set(servicios.map((s) => String(s.fecha ?? "")))]
-    .filter(Boolean)
-    .sort((a, b) => convertirFechaATimestamp(b) - convertirFechaATimestamp(a));
+  const categorias = Object.keys(conteoCat).sort((a, b) => conteoCat[b] - conteoCat[a]);
+  const marcas = Object.keys(conteoMarca).sort((a, b) => conteoMarca[b] - conteoMarca[a]);
+  const meses = Array.from(mesesMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map((e) => e[0]);
 
-  selCat.innerHTML = '<option value="">Todas las categorías</option>' + categorias.map((c) => `<option value="${c}">${c}</option>`).join("");
-  selMes.innerHTML = '<option value="">Todos los meses</option>' + meses.map((m) => `<option value="${m}">${m}</option>`).join("");
+  const fechasUnicas = Object.keys(conteoFecha).sort(
+    (a, b) => convertirFechaATimestamp(b) - convertirFechaATimestamp(a)
+  );
+
+  selCat.innerHTML =
+    '<option value="">Todas las categorías</option>' +
+    categorias.map((c) => `<option value="${c}">${c} (${conteoCat[c]})</option>`).join("");
+
+  if (selMarca) {
+    selMarca.innerHTML =
+      '<option value="">Todas las marcas</option>' +
+      marcas.map((m) => `<option value="${m}">${m} (${conteoMarca[m]})</option>`).join("");
+  }
+
+  selMes.innerHTML =
+    '<option value="">Todos los meses</option>' +
+    meses.map((m) => `<option value="${m}">${m}</option>`).join("");
+
   selFecha.innerHTML =
     '<option value="">Todas las fechas</option>' +
     fechasUnicas
       .map((f) => {
         const dia = obtenerDiaSemana(f);
-        const cant = servicios.filter((s) => s.fecha === f).length;
-        return `<option value="${f}">${f} (${dia} · ${cant} serv.)</option>`;
+        return `<option value="${f}">${f} (${dia} · ${conteoFecha[f]} serv.)</option>`;
       })
       .join("");
 
   selCat.value = valCat;
+  if (selMarca) selMarca.value = valMarca;
   selMes.value = valMes;
   selFecha.value = valFecha;
+}
+
+function actualizarEstadoVisualChips(catActiva, marcaActiva) {
+  document.querySelectorAll(".chip-filtro-cat").forEach((btn) => {
+    const val = btn.getAttribute("data-cat") || "";
+    const activo = val === catActiva;
+    btn.className = activo
+      ? "chip-filtro-cat px-3 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-600 text-white shadow-xs transition cursor-pointer"
+      : "chip-filtro-cat px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer";
+  });
+
+  document.querySelectorAll(".chip-filtro-marca").forEach((btn) => {
+    const val = btn.getAttribute("data-marca") || "";
+    const activo = val === marcaActiva;
+    btn.className = activo
+      ? "chip-filtro-marca px-3 py-1.5 rounded-xl text-xs font-extrabold bg-indigo-600 text-white shadow-xs transition cursor-pointer"
+      : "chip-filtro-marca px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer";
+  });
 }
 
 function aplicarFiltros() {
@@ -719,13 +828,17 @@ function aplicarFiltros() {
   const selMes = document.getElementById("filtro-mes");
   const selFecha = document.getElementById("filtro-fecha");
   const selCat = document.getElementById("filtro-categoria");
+  const selMarca = document.getElementById("filtro-marca");
 
   const textoQuery = limpiarParaBusqueda(inpTexto ? inpTexto.value : "");
   const palabrasBusqueda = textoQuery ? textoQuery.split(/\s+/).filter(Boolean) : [];
+  const cantPalabras = palabrasBusqueda.length;
+
   const tecnico = selTecnico ? selTecnico.value : "";
   const mes = selMes ? selMes.value : "";
   const fecha = selFecha ? selFecha.value : "";
   const cat = selCat ? selCat.value : "";
+  const marca = selMarca ? selMarca.value : "";
 
   document.querySelectorAll(".btn-tab-tecnico").forEach((btn) => {
     const tBtn = btn.getAttribute("data-tecnico") || "";
@@ -736,28 +849,41 @@ function aplicarFiltros() {
     }
   });
 
-  const filtrados = servicios.filter((item) => {
-    const diaNombre = obtenerDiaSemana(item.fecha);
-    const mesNombre = obtenerNombreMesAnio(item.fecha);
+  actualizarEstadoVisualChips(cat, marca);
 
-    let coincideTexto = true;
-    if (palabrasBusqueda.length > 0) {
-      const bloqueFila = limpiarParaBusqueda(
-        `${item.id} ${item.fecha} ${diaNombre} ${mesNombre} ${item.tecnico} ${item.categoria} ${item.marca} ${item.modelo} ${item.intervencion} ${item.trabajo} ${item.repuestos} ${item.precio} ${item.notas}`
-      );
-      coincideTexto = palabrasBusqueda.every((palabra) => bloqueFila.includes(palabra));
+  const filtrados = [];
+  const total = servicios.length;
+
+  for (let i = 0; i < total; i++) {
+    const item = servicios[i];
+
+    if (tecnico && item.tecnico !== tecnico) continue;
+    if (cat && item.categoria !== cat) continue;
+    if (marca && item.marca !== marca) continue;
+    if (mes && item._mes !== mes) continue;
+    if (fecha && item.fecha !== fecha) continue;
+
+    if (cantPalabras > 0) {
+      let todasCoinciden = true;
+      for (let j = 0; j < cantPalabras; j++) {
+        if (!item._busqueda.includes(palabrasBusqueda[j])) {
+          todasCoinciden = false;
+          break;
+        }
+      }
+      if (!todasCoinciden) continue;
     }
 
-    const coincideTecnico = !tecnico || item.tecnico === tecnico;
-    const coincideMes = !mes || mesNombre === mes;
-    const coincideFecha = !fecha || item.fecha === fecha;
-    const coincideCat = !cat || item.categoria === cat;
+    filtrados.push(item);
+  }
 
-    return coincideTexto && coincideTecnico && coincideMes && coincideFecha && coincideCat;
-  });
+  ultimosFiltrados = filtrados;
 
-  renderizarVistaTabla(filtrados);
-  renderizarVistaDiaria(filtrados);
+  if (modoVistaActual === "tabla") {
+    renderizarVistaTabla(filtrados);
+  } else {
+    renderizarVistaDiaria(filtrados);
+  }
   actualizarKPIs(filtrados);
 }
 
@@ -765,13 +891,9 @@ window.aplicarFiltros = aplicarFiltros;
 
 function obtenerBadgeTecnico(tecnico) {
   if (tecnico === "ANGEL VILLALBA") {
-    return `<span class="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-teal-100 text-teal-900 border border-teal-300 whitespace-nowrap">
-      <i data-lucide="cpu" class="w-3 h-3 text-teal-700"></i> Ángel Villalba
-    </span>`;
+    return `<span class="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-teal-100 text-teal-900 border border-teal-300 whitespace-nowrap">${SVG_CPU} Ángel Villalba</span>`;
   }
-  return `<span class="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-900 border border-indigo-300 whitespace-nowrap">
-    <i data-lucide="smartphone" class="w-3 h-3 text-indigo-700"></i> Junior Almirón
-  </span>`;
+  return `<span class="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-900 border border-indigo-300 whitespace-nowrap">${SVG_SMARTPHONE} Junior Almirón</span>`;
 }
 
 function obtenerColorBadgeCategoria(categoria) {
@@ -797,19 +919,19 @@ function renderizarVistaTabla(lista) {
     return;
   }
 
-  const invertidos = [...lista].reverse();
+  const esMovil = window.innerWidth < 768;
 
-  if (listaMovil) {
-    listaMovil.innerHTML = invertidos
-      .map((item) => {
-        const dia = obtenerDiaSemana(item.fecha);
-        return `
+  if (esMovil && listaMovil) {
+    const htmlMovil = new Array(lista.length);
+    for (let i = lista.length - 1, idx = 0; i >= 0; i--, idx++) {
+      const item = lista[i];
+      htmlMovil[idx] = `
         <div onclick="verDetalleServicio('${item.id}')" class="p-4 space-y-2.5 hover:bg-slate-50 active:bg-slate-100 cursor-pointer transition">
           <div class="flex items-center justify-between gap-2 flex-wrap">
             <div class="flex items-center gap-2">
               <span class="font-black text-slate-900 text-xs px-2 py-0.5 rounded bg-slate-200">${item.id}</span>
               <span class="text-xs font-bold text-slate-800">${item.fecha}</span>
-              <span class="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold border border-slate-300">${dia}</span>
+              <span class="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold border border-slate-300">${item._dia}</span>
             </div>
             ${obtenerBadgeTecnico(item.tecnico)}
           </div>
@@ -826,22 +948,19 @@ function renderizarVistaTabla(lista) {
                 : `<span class="text-slate-400">Sin monto</span>`
             }
           </div>
-        </div>
-      `;
-      })
-      .join("");
-  }
-
-  if (tbody) {
-    tbody.innerHTML = invertidos
-      .map((item) => {
-        const dia = obtenerDiaSemana(item.fecha);
-        return `
+        </div>`;
+    }
+    listaMovil.innerHTML = htmlMovil.join("");
+  } else if (tbody) {
+    const htmlTabla = new Array(lista.length);
+    for (let i = lista.length - 1, idx = 0; i >= 0; i--, idx++) {
+      const item = lista[i];
+      htmlTabla[idx] = `
         <tr onclick="verDetalleServicio('${item.id}')" class="hover:bg-slate-50 cursor-pointer transition">
           <td class="py-3.5 px-4 font-extrabold text-slate-800 whitespace-nowrap">${item.id}</td>
           <td class="py-3.5 px-4 whitespace-nowrap">
             <div class="font-bold text-slate-900">${item.fecha}</div>
-            <div class="text-[11px] font-extrabold text-emerald-700 uppercase tracking-wide">${dia}</div>
+            <div class="text-[11px] font-extrabold text-emerald-700 uppercase tracking-wide">${item._dia}</div>
           </td>
           <td class="py-3.5 px-4 whitespace-nowrap">
             ${obtenerBadgeTecnico(item.tecnico)}
@@ -870,16 +989,13 @@ function renderizarVistaTabla(lista) {
           <td class="py-3.5 px-4 text-xs font-bold text-slate-700">${item.notas || "-"}</td>
           <td class="py-3.5 px-4 text-center">
             <button type="button" class="text-slate-400 hover:text-emerald-600 p-1" title="Ver ficha completa">
-              <i data-lucide="eye" class="w-4 h-4"></i>
+              ${SVG_EYE}
             </button>
           </td>
-        </tr>
-      `;
-      })
-      .join("");
+        </tr>`;
+    }
+    tbody.innerHTML = htmlTabla.join("");
   }
-
-  inicializarIconos();
 }
 
 function renderizarVistaDiaria(lista) {
@@ -888,23 +1004,25 @@ function renderizarVistaDiaria(lista) {
   if (!contenedor) return;
 
   const grupos = {};
-  lista.forEach((item) => {
+  for (let i = 0; i < lista.length; i++) {
+    const item = lista[i];
     if (!grupos[item.fecha]) {
       grupos[item.fecha] = {
         fecha: item.fecha,
-        dia: obtenerDiaSemana(item.fecha),
-        timestamp: convertirFechaATimestamp(item.fecha),
+        dia: item._dia,
+        timestamp: item._timestamp,
         subtotalGs: 0,
         angelCount: 0,
         juniorCount: 0,
         items: []
       };
     }
-    grupos[item.fecha].items.push(item);
-    grupos[item.fecha].subtotalGs += obtenerMontoNumerico(item.precio);
-    if (item.tecnico === "ANGEL VILLALBA") grupos[item.fecha].angelCount++;
-    else grupos[item.fecha].juniorCount++;
-  });
+    const g = grupos[item.fecha];
+    g.items.push(item);
+    g.subtotalGs += item._monto;
+    if (item.tecnico === "ANGEL VILLALBA") g.angelCount++;
+    else g.juniorCount++;
+  }
 
   const fechasOrdenadas = Object.values(grupos).sort((a, b) => b.timestamp - a.timestamp);
   if (contadorDias) contadorDias.textContent = `${fechasOrdenadas.length} fecha(s) con actividad`;
@@ -971,7 +1089,6 @@ window.verDetalleServicio = function (id) {
   const titulo = document.getElementById("det-titulo-id");
   const cont = document.getElementById("contenido-modal-detalle");
 
-  const dia = obtenerDiaSemana(item.fecha);
   titulo.textContent = `Orden de Servicio ${item.id}`;
 
   cont.innerHTML = `
@@ -982,7 +1099,7 @@ window.verDetalleServicio = function (id) {
       </div>
       <div class="text-right">
         <span class="text-[11px] font-bold uppercase text-slate-400 block">Fecha y Día</span>
-        <span class="font-black text-slate-900 text-sm">${item.fecha} (${dia})</span>
+        <span class="font-black text-slate-900 text-sm">${item.fecha} (${item._dia})</span>
       </div>
     </div>
 
@@ -1022,7 +1139,6 @@ window.verDetalleServicio = function (id) {
 
   modal.classList.remove("hidden");
   modal.classList.add("flex");
-  inicializarIconos();
 };
 
 function calcularModa(arr) {
@@ -1030,7 +1146,8 @@ function calcularModa(arr) {
   const conteo = {};
   let maxVal = arr[0];
   let maxCount = 0;
-  for (const v of arr) {
+  for (let i = 0; i < arr.length; i++) {
+    const v = arr[i];
     conteo[v] = (conteo[v] || 0) + 1;
     if (conteo[v] > maxCount) {
       maxCount = conteo[v];
@@ -1050,25 +1167,32 @@ function actualizarKPIs(filtrados) {
   const kRecaudacion = document.getElementById("kpi-recaudacion");
   const kConPrecio = document.getElementById("kpi-con-precio");
 
-  const cantAngel = filtrados.filter((s) => s.tecnico === "ANGEL VILLALBA").length;
-  const cantJunior = filtrados.filter((s) => s.tecnico === "JUNIOR ALMIRON").length;
-
+  let cantAngel = 0;
+  let cantJunior = 0;
   let sumaGs = 0;
   let conPrecioCount = 0;
-  filtrados.forEach((s) => {
-    const m = obtenerMontoNumerico(s.precio);
-    if (m > 0) {
-      sumaGs += m;
+  const arrCats = [];
+  const arrMarcas = [];
+
+  for (let i = 0; i < filtrados.length; i++) {
+    const s = filtrados[i];
+    if (s.tecnico === "ANGEL VILLALBA") cantAngel++;
+    else cantJunior++;
+
+    if (s._monto > 0) {
+      sumaGs += s._monto;
       conPrecioCount++;
     }
-  });
+    arrCats.push(s.categoria);
+    arrMarcas.push(s.marca);
+  }
 
   if (kTotal) kTotal.textContent = filtrados.length;
   if (kSubTotal) kSubTotal.textContent = `De ${servicios.length} servicios en total`;
   if (kAngel) kAngel.textContent = `${cantAngel} serv.`;
   if (kJunior) kJunior.textContent = `${cantJunior} serv.`;
-  if (kCat) kCat.textContent = calcularModa(filtrados.map((s) => s.categoria));
-  if (kMarca) kMarca.textContent = `Marca top: ${calcularModa(filtrados.map((s) => s.marca))}`;
+  if (kCat) kCat.textContent = calcularModa(arrCats);
+  if (kMarca) kMarca.textContent = `Marca top: ${calcularModa(arrMarcas)}`;
   if (kRecaudacion) kRecaudacion.textContent = sumaGs > 0 ? formatearGuaranies(sumaGs) : "0 Gs";
   if (kConPrecio) kConPrecio.textContent = `${conPrecioCount} servicio(s) con monto registrado`;
 }
@@ -1076,17 +1200,44 @@ function actualizarKPIs(filtrados) {
 function configurarEventos() {
   const inpTexto = document.getElementById("filtro-texto");
   if (inpTexto) {
-    inpTexto.addEventListener("input", aplicarFiltros);
-    inpTexto.addEventListener("keyup", aplicarFiltros);
-    inpTexto.addEventListener("search", aplicarFiltros);
+    // Un solo listener con debounce para que el teclado jamás se trabe
+    inpTexto.addEventListener("input", () => {
+      if (timerBusqueda) clearTimeout(timerBusqueda);
+      timerBusqueda = setTimeout(() => {
+        aplicarFiltros();
+      }, 80);
+    });
   }
 
-  ["filtro-tecnico", "filtro-mes", "filtro-fecha", "filtro-categoria"].forEach((id) => {
+  ["filtro-tecnico", "filtro-mes", "filtro-fecha", "filtro-categoria", "filtro-marca"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener("change", aplicarFiltros);
-      el.addEventListener("input", aplicarFiltros);
     }
+  });
+
+  // Filtros rápidos de Categoría / Equipo (Chips)
+  document.querySelectorAll(".chip-filtro-cat").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const cat = btn.getAttribute("data-cat") || "";
+      const selCat = document.getElementById("filtro-categoria");
+      if (selCat) {
+        selCat.value = selCat.value === cat ? "" : cat;
+        aplicarFiltros();
+      }
+    });
+  });
+
+  // Filtros rápidos de Marca (Chips)
+  document.querySelectorAll(".chip-filtro-marca").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const marca = btn.getAttribute("data-marca") || "";
+      const selMarca = document.getElementById("filtro-marca");
+      if (selMarca) {
+        selMarca.value = selMarca.value === marca ? "" : marca;
+        aplicarFiltros();
+      }
+    });
   });
 
   document.querySelectorAll(".btn-tab-tecnico").forEach((btn) => {
@@ -1112,6 +1263,7 @@ function configurarEventos() {
       secDiaria.classList.add("hidden");
       btnVistaTabla.className = "px-3.5 py-1.5 rounded-lg bg-white text-slate-900 shadow-xs text-xs font-bold flex items-center gap-1.5 transition";
       btnVistaDiaria.className = "px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 text-xs font-bold flex items-center gap-1.5 transition";
+      renderizarVistaTabla(ultimosFiltrados);
     });
 
     btnVistaDiaria.addEventListener("click", () => {
@@ -1120,17 +1272,31 @@ function configurarEventos() {
       secTabla.classList.add("hidden");
       btnVistaDiaria.className = "px-3.5 py-1.5 rounded-lg bg-white text-slate-900 shadow-xs text-xs font-bold flex items-center gap-1.5 transition";
       btnVistaTabla.className = "px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 text-xs font-bold flex items-center gap-1.5 transition";
+      renderizarVistaDiaria(ultimosFiltrados);
     });
   }
+
+  window.addEventListener("resize", () => {
+    const ahoraMovil = window.innerWidth < 768;
+    if (ahoraMovil !== ultimoAnchoMovil) {
+      ultimoAnchoMovil = ahoraMovil;
+      if (modoVistaActual === "tabla") {
+        renderizarVistaTabla(ultimosFiltrados);
+      }
+    }
+  });
 
   const btnLimpiar = document.getElementById("btn-limpiar");
   if (btnLimpiar) {
     btnLimpiar.addEventListener("click", () => {
+      if (timerBusqueda) clearTimeout(timerBusqueda);
       document.getElementById("filtro-texto").value = "";
       document.getElementById("filtro-tecnico").value = "";
       document.getElementById("filtro-mes").value = "";
       document.getElementById("filtro-fecha").value = "";
       document.getElementById("filtro-categoria").value = "";
+      const selMarca = document.getElementById("filtro-marca");
+      if (selMarca) selMarca.value = "";
       aplicarFiltros();
     });
   }
@@ -1156,10 +1322,10 @@ function configurarEventos() {
   if (btnExportar) {
     btnExportar.addEventListener("click", () => {
       const encabezados = ["ID", "Fecha", "Día", "Técnico Responsable", "Categoría", "Marca", "Modelo", "Intervención", "Trabajo Realizado", "Repuestos", "Precio (Gs)", "Cliente / Notas"];
-      const filas = servicios.map((s) => [
+      const filas = ultimosFiltrados.map((s) => [
         s.id,
         s.fecha,
-        obtenerDiaSemana(s.fecha),
+        s._dia,
         s.tecnico,
         s.categoria,
         s.marca,
@@ -1221,7 +1387,7 @@ async function sincronizarDesdeDrive(mostrarAlerta = false) {
     const data = await res.json();
     if (Array.isArray(data) && data.length > 0) {
       servicios = normalizarRegistros(fusionarBaseCompleta(data));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(servicios));
+      guardarCacheLocal();
       actualizarContadoresTabsTecnicos();
       poblarSelectores();
       aplicarFiltros();
